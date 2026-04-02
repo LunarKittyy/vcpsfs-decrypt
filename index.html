@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📦 vcpsfs-decrypt | Secure File Share</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --card: #16161e;
+            --accent: #5865f2;
+            --accent-hover: #4752c4;
+            --text: #ffffff;
+            --text-dim: #949ba4;
+            --error: #f04747;
+            --success: #43b581;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(88, 101, 242, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 80% 70%, rgba(88, 101, 242, 0.05) 0%, transparent 40%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            padding: 2rem;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin: 0;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        }
+
+        .file-info {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .filename {
+            font-weight: 600;
+            font-size: 1.1rem;
+            word-break: break-all;
+            margin-bottom: 0.25rem;
+        }
+
+        .filesize {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.875rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        button:hover { background: var(--accent-hover); transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        button:disabled { 
+            opacity: 0.5; 
+            cursor: not-allowed; 
+            transform: none;
+        }
+
+        .status {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            text-align: center;
+            color: var(--text-dim);
+            min-height: 1.2rem;
+        }
+
+        /* Manual Mode */
+        .manual-section {
+            display: none;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.05em;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: white;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .drop-zone {
+            border: 2px dashed rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.2s;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(88, 101, 242, 0.05);
+        }
+
+        .view-toggle {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .view-toggle a {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .view-toggle a:hover { color: var(--text); }
+
+        .error { color: var(--error); }
+        .success { color: var(--success); }
+
+        /* Spinner */
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading .spinner { display: block; }
+        .loading .btn-text { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="app">
+    <header>
+        <h1>📦 vcpsfs-decrypt</h1>
+    </header>
+
+    <div class="card">
+        <!-- Auto Content -->
+        <div id="auto-view">
+            <div class="file-info" id="file-info">
+                <div class="filename" id="info-name">No file selected</div>
+                <div class="filesize" id="info-size">---</div>
+            </div>
+            
+            <button id="btn-decrypt" onclick="handleAutoDecrypt()">
+                <div class="spinner"></div>
+                <span class="btn-text">🔓 Decrypt & Download</span>
+            </button>
+        </div>
+
+        <!-- Manual Content -->
+        <div id="manual-view" style="display: none;">
+            <div id="manual-file-section" class="input-group">
+                <label>1. Select Encrypted File</label>
+                <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                    <span id="drop-text">Drag file here or click to browse</span>
+                    <input type="file" id="file-input" style="display: none;">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>2. Enter Decryption Key</label>
+                <input type="text" id="manual-key" placeholder="AES-GCM Key (Base64url)">
+            </div>
+
+            <button id="btn-manual-decrypt" onclick="handleManualDecrypt()">
+                <div class="spinner"></div>
+                <span class="btn-text">🔓 Decrypt</span>
+            </button>
+        </div>
+
+        <div class="status" id="status">Ready</div>
+    </div>
+
+    <div class="view-toggle">
+        <a id="toggle-link" onclick="toggleView()">Switch to Manual Decryption</a>
+    </div>
+</div>
+
+<script>
+    // ── Crypto Helpers ──────────────────────────────────────────────────────
+
+    const ALGO = "AES-GCM";
+    const IV_BYTES = 12;
+
+    async function importKey(b64url) {
+        const base64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+        const binary = atob(padded);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        
+        return crypto.subtle.importKey(
+            "raw", bytes.buffer, { name: ALGO }, false, ["decrypt"]
+        );
+    }
+
+    async function decryptBuffer(data, key) {
+        const bytes = new Uint8Array(data);
+        if (bytes.length <= IV_BYTES) throw new Error("Invalid encrypted file.");
+        const iv = bytes.slice(0, IV_BYTES);
+        const ciphertext = bytes.slice(IV_BYTES);
+        
+        return crypto.subtle.decrypt({ name: ALGO, iv }, key, ciphertext);
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }
+
+    function formatBytes(bytes) {
+        if (!bytes) return "---";
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let i = 0;
+        while (bytes >= 1024 && i < units.length - 1) {
+            bytes /= 1024;
+            i++;
+        }
+        return `${bytes.toFixed(2)} ${units[i]}`;
+    }
+
+    // ── UI Logic ────────────────────────────────────────────────────────────
+
+    let payload = null;
+    let manualFile = null;
+
+    // Parse hash on load
+    window.onload = () => {
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            try {
+                const decoded = decodeURIComponent(escape(atob(hash)));
+                payload = JSON.parse(decoded);
+                
+                // Show auto view
+                document.getElementById('info-name').textContent = payload.name;
+                document.getElementById('info-size').textContent = formatBytes(payload.size);
+                setStatus("Payload loaded from link.");
+            } catch (e) {
+                console.error(e);
+                setStatus("Error: Invalid link payload.", "error");
+                toggleView(true); // default to manual
+            }
+        } else {
+            toggleView(true);
+        }
+    };
+
+    function setStatus(msg, type = "") {
+        const s = document.getElementById('status');
+        s.textContent = msg;
+        s.className = "status " + type;
+    }
+
+    function toggleView(forceManual = false) {
+        const auto = document.getElementById('auto-view');
+        const manual = document.getElementById('manual-view');
+        const link = document.getElementById('toggle-link');
+        
+        if (forceManual || auto.style.display !== 'none') {
+            auto.style.display = 'none';
+            manual.style.display = 'block';
+            link.textContent = payload ? "Switch back to Link Content" : "";
+        } else {
+            auto.style.display = 'block';
+            manual.style.display = 'none';
+            link.textContent = "Switch to Manual Decryption";
+        }
+    }
+
+    // ── Controllers ──────────────────────────────────────────────────────────
+
+    async function handleAutoDecrypt() {
+        if (!payload) return;
+        const btn = document.getElementById('btn-decrypt');
+        btn.classList.add('loading');
+        btn.disabled = true;
+        setStatus("Fetching encrypted file...");
+
+        try {
+            const response = await fetch(payload.url);
+            if (!response.ok) throw new Error("Could not download file. CORS likely blocked it.");
+            
+            setStatus("Decrypting...");
+            const encryptedBuffer = await response.arrayBuffer();
+            const cryptoKey = await importKey(payload.key);
+            const decryptedBuffer = await decryptBuffer(encryptedBuffer, cryptoKey);
+            
+            setStatus("Downloading decrypted file...", "success");
+            const blob = new Blob([decryptedBuffer]);
+            downloadBlob(blob, payload.name);
+        } catch (e) {
+            console.error(e);
+            setStatus("Error: " + (e.message.includes("CORS") ? "CORS block (Host doesn't allow remote access)" : e.message), "error");
+            if (e.message.includes("fetch") || e.message.includes("CORS")) {
+                setTimeout(() => setStatus("Try manual decryption below.", ""), 3000);
+            }
+        } finally {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+    }
+
+    // Manual upload handling
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const dropText = document.getElementById('drop-text');
+
+    fileInput.onchange = (e) => {
+        manualFile = e.target.files[0];
+        if (manualFile) dropText.textContent = manualFile.name;
+    };
+
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+    dropZone.ondragleave = () => { dropZone.classList.remove('dragover'); };
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        manualFile = e.dataTransfer.files[0];
+        if (manualFile) dropText.textContent = manualFile.name;
+    };
+
+    async function handleManualDecrypt() {
+        const keyVal = document.getElementById('manual-key').value.trim();
+        if (!manualFile) return setStatus("Select a file first.", "error");
+        if (!keyVal) return setStatus("Enter the key.", "error");
+
+        const btn = document.getElementById('btn-manual-decrypt');
+        btn.classList.add('loading');
+        btn.disabled = true;
+        setStatus("Decrypting...");
+
+        try {
+            const buffer = await manualFile.arrayBuffer();
+            const cryptoKey = await importKey(keyVal);
+            const decrypted = await decryptBuffer(buffer, cryptoKey);
+            
+            setStatus("Done!", "success");
+            const blob = new Blob([decrypted]);
+            downloadBlob(blob, manualFile.name.replace(".secure", "").replace(".enc", ""));
+        } catch (e) {
+            console.error(e);
+            setStatus("Error: " + e.message, "error");
+        } finally {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
