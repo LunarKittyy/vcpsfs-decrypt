@@ -372,13 +372,15 @@
     async function handleAutoDecrypt() {
         if (!payload) return;
         const btn = document.getElementById('btn-decrypt');
+        const autoView = document.getElementById('auto-view');
+        
         btn.classList.add('loading');
         btn.disabled = true;
         setStatus("Fetching encrypted file...");
 
         try {
             const response = await fetch(payload.url);
-            if (!response.ok) throw new Error("Could not download file. CORS likely blocked it.");
+            if (!response.ok) throw new Error("Could not download file.");
             
             setStatus("Decrypting...");
             const encryptedBuffer = await response.arrayBuffer();
@@ -390,10 +392,38 @@
             downloadBlob(blob, payload.name);
         } catch (e) {
             console.error(e);
-            setStatus("Error: " + (e.message.includes("CORS") ? "CORS block (Host doesn't allow remote access)" : e.message), "error");
-            if (e.message.includes("fetch") || e.message.includes("CORS")) {
-                setTimeout(() => setStatus("Try manual decryption below.", ""), 3000);
+            
+            // Smart CORS Fallback
+            setStatus("Auto-fetch blocked by file host.", "error");
+            
+            const fallbackHTML = `
+                <div style="margin-top: 1.5rem; text-align: left; font-size: 0.9rem; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.1); pt: 1rem;">
+                    <p>⚠️ <b>CORS Blocked:</b> The file host refuses to let this site download the file automatically.</p>
+                    <p><b>Please follow these steps:</b></p>
+                    <ol style="padding-left: 1.2rem;">
+                        <li><a href="${payload.url}" target="_blank" style="color: var(--accent); font-weight: bold;">Download the encrypted file manually</a></li>
+                        <li>Drag that file onto the box below.</li>
+                        <li>The key is already filled in for you!</li>
+                    </ol>
+                </div>
+            `;
+            
+            // Append fallback instructions to auto-view
+            let fallbackContainer = document.getElementById('fallback-info');
+            if (!fallbackContainer) {
+                fallbackContainer = document.createElement('div');
+                fallbackContainer.id = 'fallback-info';
+                autoView.appendChild(fallbackContainer);
             }
+            fallbackContainer.innerHTML = fallbackHTML;
+            
+            // Switch to manual view after a short delay so they can see the manual drop zone
+            setTimeout(() => {
+                toggleView(true);
+                document.getElementById('manual-key').value = payload.key;
+                setStatus("Complete the manual steps above.");
+            }, 3000);
+
         } finally {
             btn.classList.remove('loading');
             btn.disabled = false;
