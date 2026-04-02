@@ -484,18 +484,24 @@
             console.error(e);
             updateProgress(null);
             
-            // Smart CORS Fallback
-            setStatus("Auto-fetch blocked by file host.", "error");
+            // Smart Fallback
+            setStatus("Automatic Download Restricted", "error");
             
             const fallbackHTML = `
-                <div style="margin-top: 1.5rem; text-align: left; font-size: 0.9rem; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.1); pt: 1rem;">
-                    <p>⚠️ <b>CORS Blocked:</b> The file host refuses to let this site download the file automatically.</p>
-                    <p><b>Please follow these steps:</b></p>
-                    <ol style="padding-left: 1.2rem;">
-                        <li><a href="${payload.url}" target="_blank" style="color: var(--accent); font-weight: bold;">Download the encrypted file manually</a></li>
-                        <li>Drag that file onto the box below.</li>
-                        <li>The key is already filled in for you!</li>
+                <div style="margin-top: 1.5rem; text-align: left; font-size: 0.9rem; line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1.5rem;">
+                    <p style="margin-bottom: 1rem; color: var(--text);"><b>⚠️ This file host has security restrictions.</b> We can't download this file automatically from our site.</p>
+                    <p><b>Please follow these 2 steps:</b></p>
+                    <ol style="padding-left: 1.2rem; margin-bottom: 1.5rem; color: var(--text-dim);">
+                        <li style="margin-bottom: 0.5rem;">
+                            <a href="${payload.url}" target="_blank" style="color: var(--accent); font-weight: bold; text-decoration: underline;">
+                                Click here to download the file manually
+                            </a>
+                        </li>
+                        <li>Come back here and click the button below.</li>
                     </ol>
+                    <button onclick="handleManualRedirect()" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem;">
+                        I've downloaded the file, let's decrypt it →
+                    </button>
                 </div>
             `;
             
@@ -506,17 +512,23 @@
                 autoView.appendChild(fallbackContainer);
             }
             fallbackContainer.innerHTML = fallbackHTML;
-            
-            setTimeout(() => {
-                toggleView(true);
-                document.getElementById('manual-key').value = payload.key;
-                setStatus("Complete the manual steps above.");
-            }, 3000);
 
         } finally {
             btn.classList.remove('loading');
             btn.disabled = false;
         }
+    }
+
+    function handleManualRedirect() {
+        if (!payload) return;
+        toggleView(true);
+        document.getElementById('manual-key').value = payload.key;
+        setStatus("Ready! Just drag the file you downloaded above.");
+        
+        // Visual cue that key is ready
+        const keyInput = document.getElementById('manual-key');
+        keyInput.style.borderColor = 'var(--accent)';
+        setTimeout(() => keyInput.style.borderColor = '', 1000);
     }
 
     // Manual upload handling
