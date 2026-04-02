@@ -202,6 +202,41 @@
         .error { color: var(--error); }
         .success { color: var(--success); }
 
+        /* Progress Bar */
+        .progress-container {
+            margin-top: 1.5rem;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+            transition: width 0.1s linear;
+        }
+
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .error { color: var(--error); }
+        .success { color: var(--success); }
+
         /* Spinner */
         .spinner {
             width: 18px;
@@ -259,6 +294,17 @@
                 <div class="spinner"></div>
                 <span class="btn-text">🔓 Decrypt</span>
             </button>
+        </div>
+
+        <!-- Progress Area -->
+        <div class="progress-container" id="progress-container">
+            <div class="progress-text">
+                <span id="progress-label">Downloading...</span>
+                <span id="progress-percent">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
         </div>
 
         <div class="status" id="status">Ready</div>
@@ -351,6 +397,23 @@
         s.className = "status " + type;
     }
 
+    function updateProgress(label, percent) {
+        const container = document.getElementById('progress-container');
+        const fill = document.getElementById('progress-fill');
+        const labelEl = document.getElementById('progress-label');
+        const percentEl = document.getElementById('progress-percent');
+
+        if (percent === null) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+        labelEl.textContent = label;
+        percentEl.textContent = `${percent}%`;
+        fill.style.width = `${percent}%`;
+    }
+
     function toggleView(forceManual = false) {
         const auto = document.getElementById('auto-view');
         const manual = document.getElementById('manual-view');
@@ -376,22 +439,50 @@
         
         btn.classList.add('loading');
         btn.disabled = true;
-        setStatus("Fetching encrypted file...");
+        setStatus("Starting download...");
 
         try {
             const response = await fetch(payload.url);
             if (!response.ok) throw new Error("Could not download file.");
-            
+
+            const contentLength = response.headers.get('Content-Length');
+            const total = contentLength ? parseInt(contentLength, 10) : 0;
+            let loaded = 0;
+
+            const reader = response.body.getReader();
+            const chunks = [];
+
+            while(true) {
+                const {done, value} = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                loaded += value.length;
+                if (total) {
+                    const pct = Math.round((loaded / total) * 100);
+                    updateProgress("Downloading...", pct);
+                }
+            }
+
+            updateProgress("Decrypting...", 100);
             setStatus("Decrypting...");
-            const encryptedBuffer = await response.arrayBuffer();
+            
+            const encryptedBuffer = new Uint8Array(loaded);
+            let offset = 0;
+            for (const chunk of chunks) {
+                encryptedBuffer.set(chunk, offset);
+                offset += chunk.length;
+            }
+
             const cryptoKey = await importKey(payload.key);
             const decryptedBuffer = await decryptBuffer(encryptedBuffer, cryptoKey);
             
-            setStatus("Downloading decrypted file...", "success");
+            setStatus("Done!", "success");
             const blob = new Blob([decryptedBuffer]);
             downloadBlob(blob, payload.name);
+            updateProgress(null);
         } catch (e) {
             console.error(e);
+            updateProgress(null);
             
             // Smart CORS Fallback
             setStatus("Auto-fetch blocked by file host.", "error");
@@ -408,7 +499,6 @@
                 </div>
             `;
             
-            // Append fallback instructions to auto-view
             let fallbackContainer = document.getElementById('fallback-info');
             if (!fallbackContainer) {
                 fallbackContainer = document.createElement('div');
@@ -417,7 +507,6 @@
             }
             fallbackContainer.innerHTML = fallbackHTML;
             
-            // Switch to manual view after a short delay so they can see the manual drop zone
             setTimeout(() => {
                 toggleView(true);
                 document.getElementById('manual-key').value = payload.key;
@@ -458,17 +547,21 @@
         btn.classList.add('loading');
         btn.disabled = true;
         setStatus("Decrypting...");
+        updateProgress("Decrypting...", 50);
 
         try {
             const buffer = await manualFile.arrayBuffer();
             const cryptoKey = await importKey(keyVal);
             const decrypted = await decryptBuffer(buffer, cryptoKey);
             
+            updateProgress("Done!", 100);
             setStatus("Done!", "success");
             const blob = new Blob([decrypted]);
             downloadBlob(blob, manualFile.name.replace(".secure", "").replace(".enc", ""));
+            setTimeout(() => updateProgress(null), 1000);
         } catch (e) {
             console.error(e);
+            updateProgress(null);
             setStatus("Error: " + e.message, "error");
         } finally {
             btn.classList.remove('loading');
