@@ -435,38 +435,43 @@
     async function handleAutoDecrypt() {
         if (!payload) return;
         const btn = document.getElementById('btn-decrypt');
-        const autoView = document.getElementById('auto-view');
         
         btn.classList.add('loading');
         btn.disabled = true;
         setStatus("Starting download...");
 
         try {
-            const response = await fetch(payload.url);
-            if (!response.ok) throw new Error("Could not download file.");
-
-            const contentLength = response.headers.get('Content-Length');
-            const total = contentLength ? parseInt(contentLength, 10) : 0;
-            let loaded = 0;
-
-            const reader = response.body.getReader();
+            const urls = Array.isArray(payload.url) ? payload.url : [payload.url];
             const chunks = [];
+            let totalLoaded = 0;
 
-            while(true) {
-                const {done, value} = await reader.read();
-                if (done) break;
-                chunks.push(value);
-                loaded += value.length;
-                if (total) {
-                    const pct = Math.round((loaded / total) * 100);
-                    updateProgress("Downloading...", pct);
+            for (let i = 0; i < urls.length; i++) {
+                const partLabel = urls.length > 1 ? ` (Part ${i + 1}/${urls.length})` : "";
+                const response = await fetch(urls[i]);
+                if (!response.ok) throw new Error(`HTTP ${response.status} on part ${i + 1}`);
+
+                const contentLength = response.headers.get('Content-Length');
+                const partTotal = contentLength ? parseInt(contentLength, 10) : 0;
+                let partLoaded = 0;
+
+                const reader = response.body.getReader();
+
+                while(true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    partLoaded += value.length;
+                    totalLoaded += value.length;
+
+                    const overallPct = Math.round(((i + (partTotal ? partLoaded / partTotal : 0)) / urls.length) * 100);
+                    updateProgress(`Downloading${partLabel}...`, overallPct);
                 }
             }
 
             updateProgress("Decrypting...", 100);
             setStatus("Decrypting...");
             
-            const encryptedBuffer = new Uint8Array(loaded);
+            const encryptedBuffer = new Uint8Array(totalLoaded);
             let offset = 0;
             for (const chunk of chunks) {
                 encryptedBuffer.set(chunk, offset);
@@ -483,36 +488,7 @@
         } catch (e) {
             console.error(e);
             updateProgress(null);
-            
-            // Smart Fallback
-            setStatus("Automatic Download Restricted", "error");
-            
-            const fallbackHTML = `
-                <div style="margin-top: 1.5rem; text-align: left; font-size: 0.9rem; line-height: 1.6; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1.5rem;">
-                    <p style="margin-bottom: 1rem; color: var(--text);"><b>⚠️ This file host has security restrictions.</b> We can't download this file automatically from our site.</p>
-                    <p><b>Please follow these 2 steps:</b></p>
-                    <ol style="padding-left: 1.2rem; margin-bottom: 1.5rem; color: var(--text-dim);">
-                        <li style="margin-bottom: 0.5rem;">
-                            <a href="${payload.url}" target="_blank" style="color: var(--accent); font-weight: bold; text-decoration: underline;">
-                                Click here to download the file manually
-                            </a>
-                        </li>
-                        <li>Come back here and click the button below.</li>
-                    </ol>
-                    <button onclick="handleManualRedirect()" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); font-size: 0.9rem;">
-                        I've downloaded the file, let's decrypt it →
-                    </button>
-                </div>
-            `;
-            
-            let fallbackContainer = document.getElementById('fallback-info');
-            if (!fallbackContainer) {
-                fallbackContainer = document.createElement('div');
-                fallbackContainer.id = 'fallback-info';
-                autoView.appendChild(fallbackContainer);
-            }
-            fallbackContainer.innerHTML = fallbackHTML;
-
+            setStatus("Download Failed: " + e.message, "error");
         } finally {
             btn.classList.remove('loading');
             btn.disabled = false;
